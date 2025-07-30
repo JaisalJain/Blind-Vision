@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blind Vision</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Initial Choice Screen -->
+      <div id="choiceScreen">
+        <div class="header">
+          <h1 class="title">Blind Vision</h1>
+          <p class="subtitle">What would you like to describe?</p>
+        </div>
+        <div class="choice-wrapper">
+          <button id="selectPhotoButton" class="choice-button">
+            <i class="fa-regular fa-image"></i>
+            <span>Describe a Photo</span>
+          </button>
+          <button id="selectVideoButton" class="choice-button">
+            <i class="fas fa-video"></i>
+            <span>Describe a Video</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main App Screen -->
+      <div id="appScreen" class="app-screen hidden">
+        <div class="app-header">
+          <button id="backButton" class="back-button" title="Go Back">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 id="appTitle"></h2>
+        </div>
+
+        <div class="video-container">
+          <video id="videoFeed" autoplay playsinline></video>
+          <img id="capturedImage" class="hidden" />
+          <div id="recordingIndicator" class="recording-indicator hidden">
+            <i class="fas fa-circle"></i> REC
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="mainActionButton" class="action-button" disabled></button>
+        </div>
+
+        <div id="chat-container" class="chat-container"></div>
+
+        <div id="followUpSection" class="follow-up-section hidden">
+          <div class="input-wrapper">
+            <input
+              type="text"
+              id="followUpInput"
+              class="follow-up-input"
+              placeholder="Ask a follow-up..."
+            />
+            <button id="micButton" class="mic-button" title="Ask with voice">
+              <i class="fas fa-microphone"></i>
+            </button>
+          </div>
+          <button
+            id="stopAudioButton"
+            class="stop-audio-button hidden"
+            title="Stop Speaking"
+          >
+            <i class="fas fa-stop-circle"></i>
+          </button>
+          <button id="askFollowUpButton" class="ask-button" title="Send">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="canvas" class="hidden"></canvas>
+  </body>
+</html>
