@@ -108,3 +108,5 @@ How I ran it on a mobile phone:
 ## Acknowledgments
 
 I would like to express my sincere gratitude to **Kaggle** for providing an accessible platform with **free GPU resources**, which made it possible to prototype and test our application without infrastructure barriers. I also thank the **Google Gemma team** for releasing a powerful and open multimodal model, and **Unsloth** for their optimized 4-bit implementation that allowed us to run Gemma 3N efficiently within the constraints of a Kaggle Notebook. This project wouldn’t have been possible without the combined efforts of these open-source and generous communities.
+
+### ** *Submisssion for "https://www.kaggle.com/competitions/google-gemma-3n-hackathon"* **
