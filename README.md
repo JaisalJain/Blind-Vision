@@ -1,4 +1,4 @@
-# Blind Vision
+# BlindVision
 
 ## **1. Abstract/Summary**
 
