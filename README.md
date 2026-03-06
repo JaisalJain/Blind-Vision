@@ -1,6 +1,6 @@
 # BlindVision
 
-## **1. Abstract/Summary**
+## **1.Summary**
 
 **Blind Vision** is an innovative web-based application designed to assist visually impaired individuals by providing real time descriptions of their surroundings. By using live camera feed, users can capture either a image or a short video clip. The application then leverages the advanced multimodal capabilities of **Google's Gemma 3N model** to generate a contextual description of the scene. The entire experience is enhanced with text-to-speech and speech-to-text functionalities, allowing for a seamless, hands-free interaction.
 
@@ -31,7 +31,7 @@ To provide a truly hands-free experience, we've integrated the browser's native 
 
 ## **4. The Role of Gemma 3N**
 
-Google's Gemma 3N is the Heart of this project. Its unique capabilities:
+Google's Gemma 3N is the core of this project. Its unique capabilities:
 
 * **Multimodality**: Gemma 3N's ability to process and reason about both images and text simultaneously is what makes Blind Vision possible.
 * **Instruction Following**: The model excels at following specific instructions, allowing us to guide it with prompts to get the exact type of descriptive output we need.
@@ -62,11 +62,24 @@ To scale this into a production grade service, we would:
 
 1. **Achieve Ultra Low latency** : Our primary goal is to optimize every layer of the stack - from a faster model deployment on Vertex AI to network improvements - to provide near-instantaneous descriptions, making the experience feel truly real-time.
 2. **Migrate the Backend**: Move the backend from the temporary Kaggle/Ngrok setup to a scalable backend (**Google Cloud Run**).
-3. **Deploy the Model**: Host the Gemma 3N model on a specialized services for lower latency and higher throughput.
+3. **Deploy the Model**: Host the Gemma 3N model on a specialized services for lower latency and higher throughput, or deploy on-device for local inference
 4. **Use a CDN**: Deploy the frontend assets to a global **Content Delivery Network ** to ensure fast loading times for users everywhere.
 5. **User Data**: Add a secure database to store preferences or history for personalization
-6. **Personilzation through facial detection**: Implement a facial recognition to personalize the user experience, this system will allow users to securely upload or capture images of family/friends, to enable relational descriptions.
+6. **Personalization through facial detection**: Implement a facial recognition to personalize the user experience, this system will allow users to securely upload or capture images of family/friends, to enable relational descriptions.
 7. **Smart Glasses Hardware Integration**: Design and build compact smart glasses equipped with cameras, to enable a fully `handsfree` experience, this will power AI vision assistance in daily life.
+
+---
+
+## Accessibility Design
+
+BlindVision was designed primarily for visually impaired users.
+
+Accessibility features include:
+
+- Voice-driven interaction using speech recognition
+- Automatic spoken responses via text-to-speech
+- Minimal visual UI requirements
+- Hands-free interaction model
 
 ---
 
@@ -105,8 +118,22 @@ How I ran it on a mobile phone:
 
 ---
 
+### Data Pipeline
+```
+Camera Input
+      ↓
+Frame Capture
+      ↓
+Backend API
+      ↓
+Gemma 3N Model
+      ↓
+Scene Description
+      ↓
+Text-to-Speech
+      ↓
+User Audio Feedback
+```
 ## Acknowledgments
 
-I would like to express my sincere gratitude to **Kaggle** for providing an accessible platform with **free GPU resources**, which made it possible to prototype and test our application without infrastructure barriers. I also thank the **Google Gemma team** for releasing a powerful and open multimodal model, and **Unsloth** for their optimized 4-bit implementation that allowed us to run Gemma 3N efficiently within the constraints of a Kaggle Notebook. This project wouldn’t have been possible without the combined efforts of these open-source and generous communities.
-
-### ** *Submisssion for "https://www.kaggle.com/competitions/google-gemma-3n-hackathon"* **
+I would like to thank the **Google Gemma team** for releasing a powerful and open multimodal model
