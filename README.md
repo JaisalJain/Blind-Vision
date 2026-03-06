@@ -1,21 +1,65 @@
 # BlindVision
 
-## **1.Summary**
+## Summary
 
 **Blind Vision** is an innovative web-based application designed to assist visually impaired individuals by providing real time descriptions of their surroundings. By using live camera feed, users can capture either a image or a short video clip. The application then leverages the advanced multimodal capabilities of **Google's Gemma 3N model** to generate a contextual description of the scene. The entire experience is enhanced with text-to-speech and speech-to-text functionalities, allowing for a seamless, hands-free interaction.
 
+### Features
+
+- Multimodal scene understanding using Gemma 3N
+- Voice interaction with Speech-to-Text and Text-to-Speech
+- Image and short video scene description
+- Accessibility-focused design
+
 ---
 
-## **2. System Architecture**
+## Demo
+
+[![BlindVision Demo](https://img.youtube.com/vi/bfQcYQhKPz0/0.jpg)](https://youtu.be/bfQcYQhKPz0)
+
+Click the image above to watch the demo.
+
+---
+
+## **System Architecture**
 
 The application is built on Kaggle Notebook  to leverage its free GPU resources. The data flow is straightforward, prioritizing a responsive and accessible user experience.
 
 **Architectural Diagram:**
 ![](https://www.googleapis.com/download/storage/v1/b/kaggle-user-content/o/inbox%2F23674462%2F53ff432f4b1eb02955f82f0bef5ace04%2FArchitecture.png?generation=1753690100158919&alt=media)
 
+
+### Data Pipeline
+```
+Camera Input
+      ↓
+Frame Capture
+      ↓
+Backend API
+      ↓
+Gemma 3N Model
+      ↓
+Scene Description
+      ↓
+Text-to-Speech
+      ↓
+Spoken Response to User 
+      ↓
+(Optional Follow-up)
+Speech-to-Text
+      ↓
+Backend API
+      ↓
+Gemma 3N Model
+      ↓
+Text-to-Speech
+      ↓
+Spoken Response to User
+```
+
 ---
 
-## **3. Core Functionality & Implementation**
+## **Core Functionality & Implementation**
 
 The application has two primary modes:
 
@@ -29,44 +73,13 @@ To provide a truly hands-free experience, we've integrated the browser's native 
 
 ---
 
-## **4. The Role of Gemma 3N**
+## **The Role of Gemma 3N**
 
 Google's Gemma 3N is the core of this project. Its unique capabilities:
 
 * **Multimodality**: Gemma 3N's ability to process and reason about both images and text simultaneously is what makes Blind Vision possible.
 * **Instruction Following**: The model excels at following specific instructions, allowing us to guide it with prompts to get the exact type of descriptive output we need.
 * **Efficiency**: By using the 4-bit quantized version of Gemma 3N provided by Unsloth, we can run this powerful model on a standard Kaggle T4 GPU, making the project accessible and easy to replicate.
-
----
-
-## **5. Challenges and Solutions**
-
-* **Challenge**: Running a large multimodal model on a free, resource-constrained platform.
-    * **Solution**: We used **4-bit quantization** via Unsloth to reduce the model's memory requirements and implemented careful memory management (gc.collect(), torch.cuda.empty_cache()) in our Python backend.
-
-* **Challenge**: Creating a live, publicly accessible link for a backend running in a Kaggle notebook.
-    * **Solution**: We used **ngrok** to create a secure tunnel to the local server, providing a stable public URL for our frontend to make API calls.
-
-* **Challenge**:  Providing a meaningful video description without the high cost and latency of processing a real-time video.
-    * **Solution**: Instead of attempting to stream live video to the backend, we implemented a more efficient "frame sampling" technique. The application captures a sequence of still frames over five seconds and sends this small batch to the model. This approach drastically reduces bandwidth and computational load while still giving the Gemma model enough sequential context to accurately describe the actions and changes taking place.
-
----
-
-## **6. Conclusion and Future Vision**
-
-Blind Vision successfully demonstrates a powerful and practical application of Google's Gemma 3N model to solve a real-world accessibility challenge.
-
-**Scaling from Prototype to Production:**
-
-To scale this into a production grade service, we would:
-
-1. **Achieve Ultra Low latency** : Our primary goal is to optimize every layer of the stack - from a faster model deployment on Vertex AI to network improvements - to provide near-instantaneous descriptions, making the experience feel truly real-time.
-2. **Migrate the Backend**: Move the backend from the temporary Kaggle/Ngrok setup to a scalable backend (**Google Cloud Run**).
-3. **Deploy the Model**: Host the Gemma 3N model on a specialized services for lower latency and higher throughput, or deploy on-device for local inference
-4. **Use a CDN**: Deploy the frontend assets to a global **Content Delivery Network ** to ensure fast loading times for users everywhere.
-5. **User Data**: Add a secure database to store preferences or history for personalization
-6. **Personalization through facial detection**: Implement a facial recognition to personalize the user experience, this system will allow users to securely upload or capture images of family/friends, to enable relational descriptions.
-7. **Smart Glasses Hardware Integration**: Design and build compact smart glasses equipped with cameras, to enable a fully `handsfree` experience, this will power AI vision assistance in daily life.
 
 ---
 
@@ -118,22 +131,27 @@ How I ran it on a mobile phone:
 
 ---
 
-### Data Pipeline
-```
-Camera Input
-      ↓
-Frame Capture
-      ↓
-Backend API
-      ↓
-Gemma 3N Model
-      ↓
-Scene Description
-      ↓
-Text-to-Speech
-      ↓
-User Audio Feedback
-```
+## **Future Vision**
+
+Blind Vision successfully demonstrates a powerful and practical application of Google's Gemma 3N model to solve a real-world accessibility challenge.
+
+**Scaling from Prototype to Production:**
+
+To scale this into a production grade service, we would:
+
+1. **Achieve Ultra Low latency** : Our primary goal is to optimize every layer of the stack - from a faster model deployment on Vertex AI to network improvements - to provide near-instantaneous descriptions, making the experience feel truly real-time.
+2. **Migrate the Backend**: Move the backend from the temporary Kaggle/Ngrok setup to a scalable backend (**Google Cloud Run**).
+3. **Deploy the Model**: Host the Gemma 3N model on a specialized services for lower latency and higher throughput, or deploy on-device for local inference
+4. **Use a CDN**: Deploy the frontend assets to a global **Content Delivery Network ** to ensure fast loading times for users everywhere.
+5. **User Data**: Add a secure database to store preferences or history for personalization
+6. **Personalization through facial detection**: Implement a facial recognition to personalize the user experience, this system will allow users to securely upload or capture images of family/friends, to enable relational descriptions.
+7. **Smart Glasses Hardware Integration**: Design and build compact smart glasses equipped with cameras, to enable a fully `handsfree` experience, this will power AI vision assistance in daily life.
+
+
+---
+
 ## Acknowledgments
 
 I would like to thank the **Google Gemma team** for releasing a powerful and open multimodal model
+
+
