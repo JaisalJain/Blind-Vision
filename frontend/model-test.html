@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blind Vision Model Test</title>
+    <style>
+      :root {
+        --bg: #1e1e1e;
+        --panel: #2a2a2a;
+        --border: #333;
+        --text: #ffffff;
+        --muted: #bbbbbb;
+        --blue: #388bfd;
+        --green: #28a745;
+        --red: #dc3545;
+        --amber: #e0a800;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.5;
+      }
+      main {
+        max-width: 700px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 0 0 8px;
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .rows {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 4px 12px;
+        font-size: 0.9rem;
+        word-break: break-word;
+      }
+      .rows dt {
+        color: var(--muted);
+      }
+      .rows dd {
+        margin: 0;
+      }
+      .ok {
+        color: var(--green);
+      }
+      .warn {
+        color: var(--amber);
+      }
+      .bad {
+        color: var(--red);
+      }
+      #status {
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+      progress {
+        width: 100%;
+        height: 14px;
+        margin-top: 8px;
+      }
+      button,
+      .file-label {
+        display: block;
+        width: 100%;
+        margin-top: 10px;
+        padding: 14px;
+        border: none;
+        border-radius: 30px;
+        background: var(--blue);
+        color: #fff;
+        font-size: 1.05rem;
+        font-weight: 700;
+        text-align: center;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #444;
+      }
+      button.danger {
+        background: var(--red);
+      }
+      button:disabled {
+        background: #555;
+        color: #999;
+        cursor: not-allowed;
+      }
+      .file-label input {
+        display: none;
+      }
+      video,
+      #preview canvas {
+        display: block;
+        width: 100%;
+        max-height: 50vh;
+        object-fit: contain;
+        background: #000;
+        border-radius: 8px;
+      }
+      #preview {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      #preview canvas {
+        flex: 1;
+        min-width: 0;
+      }
+      #output {
+        white-space: pre-wrap;
+        font-size: 1.05rem;
+        min-height: 2em;
+      }
+      #log {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 0.75rem;
+        max-height: 40vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #111;
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .log-warn {
+        color: var(--amber);
+      }
+      .log-error {
+        color: #ff6b6b;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin: 6px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Blind Vision: on-device model test</h1>
+
+      <section aria-labelledby="statusHeading">
+        <h2 id="statusHeading">Status</h2>
+        <div id="status" role="status" aria-live="polite">Starting…</div>
+        <progress id="progress" class="hidden" max="100" value="0"></progress>
+        <label id="pickLabel" class="file-label hidden">
+          Pick the model file (.litertlm)
+          <input id="modelFile" type="file" />
+        </label>
+        <p id="pickNote" class="note hidden">
+          Pick <b>gemma-3n-E2B-it-int4-Web.litertlm</b> (about 3 GB). It is
+          copied into this site's private storage once, so you only do this one
+          time.
+        </p>
+      </section>
+
+      <section aria-labelledby="testHeading">
+        <h2 id="testHeading">Test</h2>
+        <video id="video" class="hidden" autoplay playsinline muted></video>
+        <button id="photoBtn" disabled>Describe one photo</button>
+        <button id="framesBtn" class="secondary" disabled>
+          Test 3 frames over 5 seconds (video mode check)
+        </button>
+        <div id="preview"></div>
+        <h2 style="margin-top: 12px">Description</h2>
+        <div id="output" aria-live="polite"></div>
+        <dl class="rows" id="timings" style="margin-top: 10px"></dl>
+      </section>
+
+      <section aria-labelledby="deviceHeading">
+        <h2 id="deviceHeading">Device check</h2>
+        <dl class="rows" id="device"></dl>
+      </section>
+
+      <section aria-labelledby="logHeading">
+        <h2 id="logHeading">Log</h2>
+        <div id="log"></div>
+        <button id="copyLogBtn" class="secondary">Copy log</button>
+        <button id="deleteBtn" class="danger">Delete cached model</button>
+      </section>
+    </main>
+
+    <!-- On-page logger. Classic script so it is installed before the module runs. -->
+    <script>
+      (function () {
+        const MAX_LINES = 400;
+        const lines = [];
+        const box = document.getElementById("log");
+
+        function format(value) {
+          if (value instanceof Error) return value.stack || value.message;
+          if (value && typeof value === "object") {
+            if ("message" in value) return String(value.message);
+            try {
+              return JSON.stringify(value);
+            } catch {
+              return String(value);
+            }
+          }
+          return String(value);
+        }
+
+        function add(level, args) {
+          const time = new Date().toISOString().slice(11, 23);
+          const text = `[${time}] ${level.toUpperCase()} ${Array.from(args)
+            .map(format)
+            .join(" ")}`;
+          lines.push(text);
+          if (lines.length > MAX_LINES) lines.shift();
+          const div = document.createElement("div");
+          div.className = "log-" + level;
+          div.textContent = text;
+          box.appendChild(div);
+          while (box.childElementCount > MAX_LINES) box.firstChild.remove();
+          box.scrollTop = box.scrollHeight;
+        }
+
+        for (const level of ["log", "info", "warn", "error"]) {
+          const original = console[level].bind(console);
+          console[level] = (...args) => {
+            original(...args);
+            add(level, args);
+          };
+        }
+        window.addEventListener("error", (e) =>
+          add("error", [
+            "Uncaught: " +
+              (e.error ? e.error.stack || e.error.message : e.message),
+          ])
+        );
+        window.addEventListener("unhandledrejection", (e) =>
+          add("error", ["Unhandled promise rejection:", e.reason])
+        );
+        window.bvLogLines = lines;
+      })();
+    </script>
+
+    <script type="module">
+      // --- Settings ---
+      const MEDIAPIPE_VERSION = "0.10.29";
+      const GENAI_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/genai_bundle.mjs`;
+      const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/wasm`;
+      const MODEL_FILE_NAME = "gemma-3n-E2B-it-int4-Web.litertlm";
+      const EXPECTED_MODEL_BYTES = 3038117888;
+      const META_KEY = "bv-model-meta";
+      const STAGE_KEY = "bv-test-stage";
+      const MAX_IMAGE_SIDE = 768;
+      const MIN_GPU_BUFFER = 524550144; // MediaPipe warns below this
+
+      // URL overrides for debugging on the phone, e.g. ?images=1&tokens=1024
+      const params = new URLSearchParams(location.search);
+      const MAX_NUM_IMAGES = clampInt(params.get("images"), 3, 1, 5);
+      const MAX_TOKENS = clampInt(params.get("tokens"), 2048, 256, 4096);
+      const TEMPERATURE = 0.5;
+      const TOP_K = 40;
+
+      const PHOTO_PROMPT = `You are the eyes of a blind person pointing their phone camera at what is in front of them. Your answer will be read aloud.
+- First mention anything that matters for safety: steps, obstacles, vehicles, doors, people close by. Skip this if there is nothing.
+- Then describe the scene in 2-3 short, plain sentences.
+- Say where things are relative to the user: ahead, left, right, near, far.
+- If there is readable text (signs, labels, screens), read it exactly.
+- If the image is blurry, dark, or the subject is cut off, say so and tell them how to move the camera.
+- Only describe what you can actually see. If unsure, say so.
+- Do not say "the image shows". No lists or markdown.`;
+      const VIDEO_EXTRA =
+        "These are frames from a few seconds of video, in time order. Describe what is happening and what moved or changed.";
+
+      // --- Elements ---
+      const $ = (id) => document.getElementById(id);
+      const statusEl = $("status");
+      const progressEl = $("progress");
+      const pickLabel = $("pickLabel");
+      const pickNote = $("pickNote");
+      const fileInput = $("modelFile");
+      const video = $("video");
+      const photoBtn = $("photoBtn");
+      const framesBtn = $("framesBtn");
+      const previewEl = $("preview");
+      const outputEl = $("output");
+      const timingsEl = $("timings");
+      const deviceEl = $("device");
+
+      // --- State ---
+      let llm = null;
+      let genai = null; // the imported MediaPipe module
+      let busy = false;
+      let lastSpokenStep = -1;
+      let modelLoadMs = null;
+      const speechErrorsSeen = new Set();
+
+      // --- Small helpers ---
+      function clampInt(value, fallback, min, max) {
+        const n = parseInt(value, 10);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+      }
+
+      function gb(bytes) {
+        return (bytes / 1024 ** 3).toFixed(2) + " GB";
+      }
+
+      function seconds(ms) {
+        return (ms / 1000).toFixed(1) + " s";
+      }
+
+      function speak(text) {
+        if (!("speechSynthesis" in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "en-US";
+        u.onerror = (e) => {
+          if (e.error === "interrupted" || e.error === "canceled") return;
+          if (speechErrorsSeen.has(e.error)) return; // warn once per kind
+          speechErrorsSeen.add(e.error);
+          console.warn(
+            e.error === "not-allowed"
+              ? "Speech blocked: Chrome only allows speech after you tap the page once."
+              : `Speech failed (${e.error}).`
+          );
+        };
+        window.speechSynthesis.speak(u);
+      }
+
+      function setStatus(text, { say = false, level = "" } = {}) {
+        statusEl.textContent = text;
+        statusEl.className = level;
+        if (say) speak(text);
+      }
+
+      function fail(text, error) {
+        console.error(text, error ?? "");
+        const detail = error?.message ? ` ${error.message}` : "";
+        setStatus(text + detail, { level: "bad" });
+        speak(text);
+        progressEl.classList.add("hidden");
+      }
+
+      // Shows a progress bar and speaks it at every 25%.
+      function showProgress(label, done, total) {
+        const pct = Math.min(100, Math.floor((done / total) * 100));
+        progressEl.classList.remove("hidden");
+        progressEl.value = pct;
+        statusEl.textContent = `${label}: ${pct}% (${gb(done)} of ${gb(total)})`;
+        statusEl.className = "";
+        const step = Math.floor(pct / 25);
+        if (step !== lastSpokenStep) {
+          lastSpokenStep = step;
+          speak(`${label}, ${step * 25} percent`);
+        }
+      }
+
+      function addRow(dl, label, value, level = "") {
+        const dt = document.createElement("dt");
+        dt.textContent = label;
+        const dd = document.createElement("dd");
+        dd.textContent = value;
+        if (level) dd.className = level;
+        dl.append(dt, dd);
+      }
+
+      // Remembers what we were doing, so after a crash (tab killed for
+      // memory) the next page load can say where it died.
+      function markStage(stage) {
+        try {
+          if (stage) {
+            localStorage.setItem(
+              STAGE_KEY,
+              JSON.stringify({ stage, at: new Date().toISOString() })
+            );
+          } else {
+            localStorage.removeItem(STAGE_KEY);
+          }
+        } catch {}
+      }
+
+      function readJson(key) {
+        try {
+          return JSON.parse(localStorage.getItem(key));
+        } catch {
+          return null;
+        }
+      }
+
+      // Keeps the screen on during long copy/load steps, so Android does
+      // not suspend the tab.
+      async function keepAwake() {
+        try {
+          return await navigator.wakeLock?.request("screen");
+        } catch (e) {
+          console.warn("Wake lock not available:", e.message);
+          return null;
+        }
+      }
+
+      function setBusy(value) {
+        busy = value;
+        const ready = !!llm && !busy;
+        photoBtn.disabled = !ready;
+        framesBtn.disabled = !ready;
+        fileInput.disabled = busy;
+      }
+
+      // --- Device check ---
+      async function checkWebGPU() {
+        if (!window.isSecureContext) {
+          addRow(deviceEl, "WebGPU", "Page is not HTTPS, WebGPU is off", "bad");
+          return "WebGPU needs HTTPS. Open the https address of this page.";
+        }
+        if (!("gpu" in navigator)) {
+          addRow(
+            deviceEl,
+            "WebGPU",
+            "NOT available (navigator.gpu missing). Needs Chrome 121+ on Android 12+.",
+            "bad"
+          );
+          return "WebGPU is not available on this browser, so the model cannot run. Use an up to date Chrome on Android 12 or newer.";
+        }
+        let adapter;
+        try {
+          adapter = await navigator.gpu.requestAdapter({
+            powerPreference: "high-performance",
+          });
+        } catch (e) {
+          console.error("requestAdapter failed:", e);
+        }
+        if (!adapter) {
+          addRow(deviceEl, "WebGPU", "NOT available (no GPU adapter)", "bad");
+          return "WebGPU is turned on but no GPU adapter was found, so the model cannot run.";
+        }
+        addRow(deviceEl, "WebGPU", "Available", "ok");
+
+        let info = adapter.info;
+        if (!info && adapter.requestAdapterInfo) {
+          try {
+            info = await adapter.requestAdapterInfo();
+          } catch {}
+        }
+        if (info) {
+          const desc = [info.vendor, info.architecture, info.device, info.description]
+            .filter(Boolean)
+            .join(" / ");
+          addRow(deviceEl, "GPU", desc || "(not reported)");
+        }
+
+        const f16 = adapter.features.has("shader-f16");
+        addRow(
+          deviceEl,
+          "shader-f16",
+          f16 ? "Yes" : "No (MediaPipe needs it)",
+          f16 ? "ok" : "bad"
+        );
+        const maxBuf = adapter.limits.maxBufferSize;
+        const maxBind = adapter.limits.maxStorageBufferBindingSize;
+        addRow(
+          deviceEl,
+          "maxBufferSize",
+          `${(maxBuf / 1024 ** 2).toFixed(0)} MB`,
+          maxBuf >= MIN_GPU_BUFFER ? "ok" : "warn"
+        );
+        addRow(
+          deviceEl,
+          "maxStorageBufferBindingSize",
+          `${(maxBind / 1024 ** 2).toFixed(0)} MB`,
+          maxBind >= MIN_GPU_BUFFER ? "ok" : "warn"
+        );
+        if (maxBuf < MIN_GPU_BUFFER || maxBind < MIN_GPU_BUFFER) {
+          console.warn(
+            `GPU buffer limits are below the ${(MIN_GPU_BUFFER / 1024 ** 2).toFixed(0)} MB MediaPipe usually needs. Loading may fail.`
+          );
+        }
+        return f16
+          ? null
+          : "This GPU does not support 16-bit shaders (shader-f16), which the model needs.";
+      }
+
+      async function showDeviceInfo() {
+        addRow(deviceEl, "Browser", navigator.userAgent);
+        addRow(
+          deviceEl,
+          "Device RAM (approx.)",
+          navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "unknown"
+        );
+        addRow(
+          deviceEl,
+          "Settings",
+          `maxNumImages=${MAX_NUM_IMAGES}, maxTokens=${MAX_TOKENS}, temperature=${TEMPERATURE}, topK=${TOP_K}, MediaPipe ${MEDIAPIPE_VERSION}`
+        );
+        try {
+          const est = await navigator.storage.estimate();
+          addRow(
+            deviceEl,
+            "Storage",
+            `${gb(est.usage)} used of ${gb(est.quota)} allowed`
+          );
+          const persisted = await navigator.storage.persisted();
+          addRow(
+            deviceEl,
+            "Persistent storage",
+            persisted ? "Yes" : "No (browser may evict the model under storage pressure)",
+            persisted ? "ok" : "warn"
+          );
+        } catch (e) {
+          addRow(deviceEl, "Storage", "Storage API error: " + e.message, "bad");
+        }
+      }
+
+      // --- Model file in OPFS ---
+      async function getCachedModelFile() {
+        const root = await navigator.storage.getDirectory();
+        let handle;
+        try {
+          handle = await root.getFileHandle(MODEL_FILE_NAME);
+        } catch {
+          return null; // not cached yet
+        }
+        const file = await handle.getFile();
+        const meta = readJson(META_KEY);
+        const expected = meta?.size ?? EXPECTED_MODEL_BYTES;
+        if (file.size !== expected) {
+          console.warn(
+            `Cached model has ${file.size} bytes, expected ${expected}. Deleting it.`
+          );
+          await root.removeEntry(MODEL_FILE_NAME).catch(() => {});
+          return null;
+        }
+        return file;
+      }
+
+      async function looksLikeLiteRtLm(file) {
+        const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+        return new TextDecoder().decode(head) === "LITERTLM";
+      }
+
+      async function copyToOpfs(file) {
+        const est = await navigator.storage.estimate();
+        const free = est.quota - est.usage;
+        if (free < file.size + 100 * 1024 ** 2) {
+          throw new Error(
+            `Not enough browser storage: ${gb(free)} free, the model needs ${gb(file.size)}. Free up phone storage and try again.`
+          );
+        }
+
+        const root = await navigator.storage.getDirectory();
+        await root.removeEntry(MODEL_FILE_NAME).catch(() => {});
+        const handle = await root.getFileHandle(MODEL_FILE_NAME, { create: true });
+        try {
+          // createWritable writes to a temporary file and only replaces the
+          // real one when the stream closes, so a cut-off copy leaves nothing
+          // half-written behind.
+          const writable = await handle.createWritable();
+          let copied = 0;
+          lastSpokenStep = -1;
+          const counter = new TransformStream({
+            transform(chunk, controller) {
+              copied += chunk.byteLength;
+              showProgress("Copying model", copied, file.size);
+              controller.enqueue(chunk);
+            },
+          });
+          await file.stream().pipeThrough(counter).pipeTo(writable);
+        } catch (e) {
+          await root.removeEntry(MODEL_FILE_NAME).catch(() => {});
+          throw e;
+        }
+        localStorage.setItem(
+          META_KEY,
+          JSON.stringify({ name: file.name, size: file.size, savedAt: Date.now() })
+        );
+        return handle.getFile();
+      }
+
+      async function onModelPicked() {
+        const picked = fileInput.files?.[0];
+        fileInput.value = "";
+        if (!picked || busy) return;
+        console.log(`Picked "${picked.name}", ${picked.size} bytes`);
+
+        if (!(await looksLikeLiteRtLm(picked))) {
+          fail(
+            "That file is not a .litertlm model. Please pick gemma-3n-E2B-it-int4-Web.litertlm."
+          );
+          return;
+        }
+        if (picked.size !== EXPECTED_MODEL_BYTES) {
+          console.warn(
+            `File size ${picked.size} differs from the known size ${EXPECTED_MODEL_BYTES}. Continuing anyway.`
+          );
+        }
+
+        setBusy(true);
+        const lock = await keepAwake();
+        try {
+          // Ask for persistent storage (helps keep the 3 GB file from being
+          // evicted). Chrome decides on its own; it is fine if it says no.
+          const persisted = await navigator.storage.persist().catch(() => false);
+          console.log("navigator.storage.persist() ->", persisted);
+
+          markStage("copying model to storage");
+          const t0 = performance.now();
+          const file = await copyToOpfs(picked);
+          markStage(null);
+          console.log(`Copied to private storage in ${seconds(performance.now() - t0)}`);
+          pickLabel.classList.add("hidden");
+          pickNote.classList.add("hidden");
+          await loadModel(file);
+        } catch (e) {
+          markStage(null);
+          fail("Copying the model failed.", e);
+        } finally {
+          lock?.release().catch(() => {});
+          setBusy(false);
+        }
+      }
+
+      // --- Model loading ---
+      async function loadModel(file) {
+        setBusy(true);
+        const lock = await keepAwake();
+        markStage("loading model into the GPU");
+        lastSpokenStep = -1;
+        let reader = null;
+        let loading = true; // stops progress updates once loading ends
+        try {
+          setStatus("Loading MediaPipe…", { say: true });
+          const tImport = performance.now();
+          genai ??= await import(GENAI_URL);
+          const fileset = await genai.FilesetResolver.forGenAiTasks(WASM_URL);
+          console.log(`MediaPipe + WASM ready in ${seconds(performance.now() - tImport)}`);
+
+          // Stream the file in chunks. Never read 3 GB into one buffer.
+          let read = 0;
+          const counter = new TransformStream({
+            transform(chunk, controller) {
+              read += chunk.byteLength;
+              if (loading) showProgress("Loading model", read, file.size);
+              controller.enqueue(chunk);
+            },
+          });
+          reader = file.stream().pipeThrough(counter).getReader();
+
+          const t0 = performance.now();
+          llm = await genai.LlmInference.createFromOptions(fileset, {
+            baseOptions: { modelAssetBuffer: reader },
+            maxTokens: MAX_TOKENS,
+            maxNumImages: MAX_NUM_IMAGES,
+            topK: TOP_K,
+            temperature: TEMPERATURE,
+          });
+          const loadMs = performance.now() - t0;
+          modelLoadMs = loadMs;
+          markStage(null);
+
+          progressEl.classList.add("hidden");
+          addRow(timingsEl, "Model load", seconds(loadMs));
+          console.log(`Model loaded in ${seconds(loadMs)} (${gb(read)} streamed)`);
+          setStatus(`Model ready (loaded in ${seconds(loadMs)}).`, { level: "ok" });
+          speak("Model ready.");
+          await startCamera();
+        } catch (e) {
+          markStage(null);
+          llm = null;
+          loading = false;
+          reader?.cancel().catch(() => {});
+          fail("Model loading failed.", e);
+          // Let the user pick the file again (this replaces the saved copy).
+          pickLabel.classList.remove("hidden");
+          pickNote.classList.remove("hidden");
+        } finally {
+          loading = false;
+          lock?.release().catch(() => {});
+          setBusy(false);
+        }
+      }
+
+      // --- Camera ---
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+          video.srcObject = stream;
+          video.classList.remove("hidden");
+          await video.play().catch(() => {});
+        } catch (e) {
+          fail("Could not open the camera. Allow camera access and reload.", e);
+        }
+      }
+
+      // Grabs the current video frame, scaled so the longest side is at most 768 px.
+      function captureFrame() {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) throw new Error("Camera is not ready yet.");
+        const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(vw, vh));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(vw * scale);
+        canvas.height = Math.round(vh * scale);
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas;
+      }
+
+      // --- Generation ---
+      function stripMarkdown(text) {
+        return text
+          .replace(/<end_of_turn>/g, "")
+          .replace(/```[\s\S]*?```/g, "")
+          .replace(/`([^`]*)`/g, "$1")
+          .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+          .replace(/(\*\*|__)(.*?)\1/g, "$2")
+          .replace(/^\s*[-*+•]\s+/gm, "")
+          .replace(/^\s*\d+[.)]\s+/gm, "")
+          .replace(/\*([^*\n]+)\*/g, "$1")
+          .replace(/\b_([^_\n]+)_\b/g, "$1")
+          .replace(/[*#]/g, "")
+          .replace(/\n{2,}/g, "\n")
+          .trim();
+      }
+
+      async function describe(frames, systemPrompt, request) {
+        setBusy(true);
+        outputEl.textContent = "";
+        timingsEl.replaceChildren();
+        if (modelLoadMs !== null) addRow(timingsEl, "Model load", seconds(modelLoadMs));
+        previewEl.replaceChildren(...frames);
+
+        const query = ["<start_of_turn>user\n", systemPrompt + "\n\n"];
+        for (const frame of frames) query.push({ imageSource: frame });
+        query.push(`\n${request}<end_of_turn>\n<start_of_turn>model\n`);
+
+        try {
+          const promptTokens = llm.sizeInTokens(query);
+          addRow(
+            timingsEl,
+            "Prompt size",
+            `${promptTokens ?? "?"} tokens (limit ${MAX_TOKENS} incl. answer)`
+          );
+        } catch (e) {
+          console.warn("sizeInTokens failed:", e.message);
+        }
+
+        setStatus(`Describing ${frames.length} image(s)…`, { say: true });
+        markStage(`generating with ${frames.length} image(s)`);
+        const t0 = performance.now();
+        let firstTokenAt = null;
+        let raw = "";
+        try {
+          await llm.generateResponse(query, (partial) => {
+            if (partial && firstTokenAt === null) firstTokenAt = performance.now();
+            raw += partial;
+            outputEl.textContent = stripMarkdown(raw);
+          });
+          const end = performance.now();
+          markStage(null);
+
+          const text = stripMarkdown(raw);
+          outputEl.textContent = text || "(empty answer)";
+          let outTokens = null;
+          try {
+            outTokens = llm.sizeInTokens(raw);
+          } catch {}
+          if (firstTokenAt !== null) {
+            addRow(timingsEl, "Time to first word", seconds(firstTokenAt - t0));
+          }
+          addRow(timingsEl, "Total generation", seconds(end - t0));
+          if (outTokens && firstTokenAt !== null && end > firstTokenAt) {
+            const rate = outTokens / ((end - firstTokenAt) / 1000);
+            addRow(timingsEl, "Answer", `${outTokens} tokens, ${rate.toFixed(1)} tokens/s`);
+          }
+          console.log(`Generation done in ${seconds(end - t0)}`);
+          setStatus("Done.", { level: "ok" });
+          speak(text || "The model returned an empty answer.");
+        } catch (e) {
+          markStage(null);
+          fail("Generating the description failed.", e);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function onPhoto() {
+        if (!llm || busy) return;
+        try {
+          const frame = captureFrame();
+          await describe([frame], PHOTO_PROMPT, "What is in front of me?");
+        } catch (e) {
+          fail("Capture failed.", e);
+        }
+      }
+
+      async function onFrames() {
+        if (!llm || busy) return;
+        if (MAX_NUM_IMAGES < 3) {
+          fail(`This test needs 3 images, but maxNumImages is ${MAX_NUM_IMAGES}. Remove ?images= from the URL.`);
+          return;
+        }
+        setBusy(true);
+        setStatus("Recording for 5 seconds…", { say: true });
+        try {
+          const frames = [];
+          for (const delay of [0, 2500, 2500]) {
+            await new Promise((r) => setTimeout(r, delay));
+            frames.push(captureFrame());
+          }
+          setBusy(false);
+          await describe(
+            frames,
+            PHOTO_PROMPT + "\n" + VIDEO_EXTRA,
+            "What is happening in front of me?"
+          );
+        } catch (e) {
+          setBusy(false);
+          fail("Recording failed.", e);
+        }
+      }
+
+      async function onDelete() {
+        if (busy) return;
+        if (!confirm("Delete the cached model? You will need to pick the file again.")) return;
+        try {
+          llm?.close();
+          llm = null;
+          const root = await navigator.storage.getDirectory();
+          await root.removeEntry(MODEL_FILE_NAME).catch(() => {});
+          localStorage.removeItem(META_KEY);
+          console.log("Cached model deleted.");
+          location.reload();
+        } catch (e) {
+          fail("Deleting failed.", e);
+        }
+      }
+
+      async function onCopyLog() {
+        const text = [
+          ...[...deviceEl.children].map((el) => el.textContent),
+          "",
+          ...window.bvLogLines,
+        ].join("\n");
+        try {
+          await navigator.clipboard.writeText(text);
+          setStatus("Log copied to clipboard.");
+        } catch (e) {
+          console.warn("Clipboard failed:", e.message);
+        }
+      }
+
+      // --- Start ---
+      async function main() {
+        photoBtn.addEventListener("click", onPhoto);
+        framesBtn.addEventListener("click", onFrames);
+        fileInput.addEventListener("change", onModelPicked);
+        $("deleteBtn").addEventListener("click", onDelete);
+        $("copyLogBtn").addEventListener("click", onCopyLog);
+
+        const crashed = readJson(STAGE_KEY);
+        if (crashed) {
+          console.error(
+            `The last visit stopped while "${crashed.stage}" (${crashed.at}). The tab was probably killed for using too much memory.`
+          );
+          markStage(null);
+        }
+
+        const gpuProblem = await checkWebGPU();
+        await showDeviceInfo();
+        if (gpuProblem) {
+          fail(gpuProblem);
+          return;
+        }
+        if (!navigator.storage?.getDirectory) {
+          fail("This browser has no private file storage (OPFS). Update Chrome.");
+          return;
+        }
+
+        try {
+          setStatus("Looking for a saved model…");
+          const cached = await getCachedModelFile();
+          if (cached) {
+            console.log(`Found saved model (${gb(cached.size)}).`);
+            await loadModel(cached);
+          } else {
+            setStatus("No model saved yet. Pick the model file.", { say: true });
+            pickLabel.classList.remove("hidden");
+            pickNote.classList.remove("hidden");
+          }
+        } catch (e) {
+          fail("Could not read private storage.", e);
+          pickLabel.classList.remove("hidden");
+          pickNote.classList.remove("hidden");
+        }
+      }
+
+      main();
+    </script>
+  </body>
+</html>
