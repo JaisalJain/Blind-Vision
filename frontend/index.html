@@ -29,6 +29,32 @@
             <span>Describe a Video</span>
           </button>
         </div>
+
+        <!-- Backend URL (ngrok link from the Colab notebook) -->
+        <div class="backend-setting">
+          <label for="backendUrlInput" class="backend-label"
+            >Backend URL (ngrok link from the Colab notebook)</label
+          >
+          <div class="input-wrapper backend-input-wrapper">
+            <input
+              type="url"
+              id="backendUrlInput"
+              class="follow-up-input"
+              placeholder="https://xxxx.ngrok-free.app"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            />
+            <button
+              id="saveBackendUrlButton"
+              class="ask-button"
+              title="Save backend URL"
+            >
+              <i class="fas fa-check"></i>
+            </button>
+          </div>
+          <p id="backendUrlStatus" class="backend-status" aria-live="polite"></p>
+        </div>
       </div>
 
       <!-- Main App Screen -->
