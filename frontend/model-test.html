@@ -548,9 +548,45 @@
         return file;
       }
 
-      async function looksLikeLiteRtLm(file) {
-        const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
-        return new TextDecoder().decode(head) === "LITERTLM";
+      // A .litertlm file starts with the ASCII bytes "LITERTLM" (bytes 0-7),
+      // per LiteRT-LM's litertlm_core.py and MediaPipe's own format check.
+      const LITERTLM_MAGIC = "LITERTLM";
+      const MIN_MODEL_BYTES = 1024 ** 3; // anything under 1 GB is not this model
+
+      function describeBytes(bytes) {
+        const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join(" ");
+        const ascii = [...bytes]
+          .map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : "."))
+          .join("");
+        return `${bytes.length} bytes\n  hex:   ${hex}\n  ascii: ${ascii}`;
+      }
+
+      // Reads the first 32 bytes, logs them, and returns whether the magic
+      // matched. Tries file.slice() first, then the file stream, so the log
+      // shows if one of the two read paths misbehaves on this phone.
+      async function checkHeader(file) {
+        let head = null;
+        try {
+          head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+          console.log("First bytes via slice():", describeBytes(head));
+        } catch (e) {
+          console.warn("Reading the first bytes via slice() failed:", e.message);
+        }
+        if (!head || head.length < 8) {
+          try {
+            const reader = file.stream().getReader();
+            const { value } = await reader.read();
+            reader.cancel().catch(() => {});
+            head = value ? value.subarray(0, 32) : new Uint8Array(0);
+            console.log("First bytes via stream():", describeBytes(head));
+          } catch (e) {
+            console.warn("Reading the first bytes via stream() failed:", e.message);
+          }
+        }
+        const magic = head ? new TextDecoder().decode(head.subarray(0, 8)) : "";
+        const ok = magic === LITERTLM_MAGIC;
+        if (ok) console.log(`Header OK: starts with "${LITERTLM_MAGIC}".`);
+        return ok;
       }
 
       async function copyToOpfs(file) {
@@ -597,11 +633,19 @@
         if (!picked || busy) return;
         console.log(`Picked "${picked.name}", ${picked.size} bytes`);
 
-        if (!(await looksLikeLiteRtLm(picked))) {
+        if (picked.size < MIN_MODEL_BYTES) {
           fail(
-            "That file is not a .litertlm model. Please pick gemma-3n-E2B-it-int4-Web.litertlm."
+            `That file is only ${gb(picked.size)}, too small to be the model. Please pick gemma-3n-E2B-it-int4-Web.litertlm (about 2.8 GB).`
           );
           return;
+        }
+        if (!/\.litertlm$/i.test(picked.name)) {
+          console.warn(`File name does not end in .litertlm. Continuing anyway.`);
+        }
+        if (!(await checkHeader(picked))) {
+          console.warn(
+            `Header does not start with "${LITERTLM_MAGIC}" (see bytes above). Continuing anyway; MediaPipe will report an error if the file is wrong.`
+          );
         }
         if (picked.size !== EXPECTED_MODEL_BYTES) {
           console.warn(
